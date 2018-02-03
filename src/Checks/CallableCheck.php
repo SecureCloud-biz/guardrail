@@ -27,23 +27,7 @@ use PhpParser\Node\Stmt\ClassLike;
  * that it believes is a "callable" to this check.
  *
  */
-class CallableCheck extends BaseCheck {
-	/**
-	 * @var TypeInferrer
-	 */
-	private $inferenceEngine;
-
-	/**
-	 * CallableCheck constructor.
-	 * @param SymbolTable     $symbolTable -
-	 * @param OutputInterface $doc         -
-	 */
-	public function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->inferenceEngine = new TypeInferrer($symbolTable);
-
-	}
-
+class CallableCheck extends TypeInferringBaseCheck {
 	/**
 	 *
 	 * Callables don't have a node type.  This is a special check that we'll embed inside other checks for
@@ -79,7 +63,7 @@ class CallableCheck extends BaseCheck {
 				$classType = $object->name;
 			}
 		} else {
-			list($classType) = $this->inferenceEngine->inferType($inside, $object, $scope);
+			list($classType) = $this->typeInferrer->inferType($inside, $object, $scope);
 		}
 		if ($classType && $classType[0] == "\\") {
 			$classType = substr($classType, 1);

@@ -22,22 +22,6 @@ use BambooHR\Guardrail\Util;
 class StaticPropertyFetchCheck extends BaseCheck {
 
 	/**
-	 * @var TypeInferrer
-	 */
-	private $typeInferer;
-
-	/**
-	 * StaticPropertyFetchCheck constructor.
-	 *
-	 * @param SymbolTable     $symbolTable Instance of SymbolTable
-	 * @param OutputInterface $doc         Instance of OutputInterface
-	 */
-	function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->typeInferer = new TypeInferrer($symbolTable);
-	}
-
-	/**
 	 * getCheckNodeTypes
 	 *
 	 * @return array

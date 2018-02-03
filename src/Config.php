@@ -5,12 +5,10 @@
  * Apache 2.0 License
  */
 
-use BambooHR\Guardrail\Checks\BaseCheck;
 use BambooHR\Guardrail\Checks\ErrorConstants;
 use BambooHR\Guardrail\Exceptions\InvalidConfigException;
 use BambooHR\Guardrail\Filters\FilterInterface;
 use BambooHR\Guardrail\Filters\UnifiedDiffFilter;
-use BambooHR\Guardrail\Output\OutputInterface;
 use BambooHR\Guardrail\SymbolTable\SymbolTable;
 
 /**
@@ -206,24 +204,15 @@ class Config {
 		return $this->timings;
 	}
 
+
+
 	/**
-	 * getPlugins
+	 * getPluginsFileNames
 	 *
-	 * @param SymbolTable     $index  Instance of SymbolTable
-	 * @param OutputInterface $output Instance of OutputInterface
-	 *
-	 * @return BaseCheck[]
+	 * @return array
 	 */
-	public function getPlugins(SymbolTable $index, OutputInterface $output) {
-		$plugins = [];
-		if (isset($this->config['plugins']) && is_array($this->config['plugins'])) {
-			foreach ($this->config['plugins'] as $fileName) {
-				$fullPath = Util::fullDirectoryPath($this->basePath, $fileName);
-				$function = require $fullPath;
-				$plugins[] = call_user_func($function, $index, $output);
-			}
-		}
-		return $plugins;
+	public function getPluginFileNames() {
+		return isset($this->config['plugins']) && is_array($this->config['plugins']) ? $this->config['plugins'] : [];
 	}
 
 	/**

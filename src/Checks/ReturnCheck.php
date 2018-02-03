@@ -18,23 +18,7 @@ use PhpParser\Node\Stmt\Return_;
  *
  * @package BambooHR\Guardrail\Checks
  */
-class ReturnCheck extends BaseCheck {
-
-	/**
-	 * @var TypeInferrer
-	 */
-	private $typeInferer;
-
-	/**
-	 * ReturnCheck constructor.
-	 *
-	 * @param SymbolTable     $symbolTable Instance of SymbolTable
-	 * @param OutputInterface $doc         Instance OutputInterface
-	 */
-	public function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->typeInferer = new TypeInferrer($symbolTable);
-	}
+class ReturnCheck extends TypeInferringBaseCheck {
 
 	/**
 	 * getCheckNodeTypes
@@ -58,7 +42,7 @@ class ReturnCheck extends BaseCheck {
 	public function run($fileName, Node $node, ClassLike $inside = null, Scope $scope = null) {
 		if ($node instanceof Return_) {
 			/** @var Return_ $node */
-			list($type) = $this->typeInferer->inferType($inside, $node->expr, $scope);
+			list($type) = $this->typeInferrer->inferType($inside, $node->expr, $scope);
 
 			$insideFunc = $scope->getInsideFunction();
 			if ($inside && $insideFunc && $type) {

@@ -22,7 +22,7 @@ use BambooHR\Guardrail\Util;
  *
  * @package BambooHR\Guardrail\Checks
  */
-class MethodCall extends BaseCheck {
+class MethodCall extends TypeInferringBaseCheck {
 
 	/** @var TypeInferrer */
 	private $inferenceEngine;
@@ -38,10 +38,9 @@ class MethodCall extends BaseCheck {
 	 * @param SymbolTable     $symbolTable Instance of the SymbolTable
 	 * @param OutputInterface $doc         Instance of OutputInterface
 	 */
-	public function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->inferenceEngine = new TypeInferrer($symbolTable);
-		$this->callableCheck = new CallableCheck($symbolTable, $doc);
+	public function __construct(SymbolTable $symbolTable, OutputInterface $doc, TypeInferrer $inferrer) {
+		parent::__construct($symbolTable, $doc, $inferrer);
+		$this->callableCheck = new CallableCheck($symbolTable, $doc, $inferrer);
 	}
 
 	/**
@@ -87,7 +86,7 @@ class MethodCall extends BaseCheck {
 				}
 			}
 			if ($scope) {
-				list($className) = $this->inferenceEngine->inferType($inside, $node->var, $scope);
+				list($className) = $this->typeInferrer->inferType($inside, $node->var, $scope);
 			}
 			if ($className != "" && $className[0] != "!") {
 				if (!$this->symbolTable->isDefinedClass($className)) {
@@ -172,7 +171,7 @@ class MethodCall extends BaseCheck {
 	protected function checkParam($fileName, $node, $name, Scope $scope, ClassLike $inside=null, $arg, $index, $params) {
 		if ($scope && $arg->value instanceof Expr && $index < count($params)) {
 			$variableName = $params[$index]->getName();
-			list($type, $maybeNull) = $this->inferenceEngine->inferType($inside, $arg->value, $scope);
+			list($type, $maybeNull) = $this->typeInferrer->inferType($inside, $arg->value, $scope);
 			if ($arg->unpack) {
 				// Check if they called with ...$array.  If so, make sure $array is of type undefined or array
 				$isSplatable = (

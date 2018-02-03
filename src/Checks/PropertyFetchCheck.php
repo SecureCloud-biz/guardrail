@@ -19,23 +19,7 @@ use BambooHR\Guardrail\Util;
  *
  * @package BambooHR\Guardrail\Checks
  */
-class PropertyFetchCheck extends BaseCheck {
-
-	/**
-	 * @var TypeInferrer
-	 */
-	private $typeInferer;
-
-	/**
-	 * PropertyFetch constructor.
-	 *
-	 * @param SymbolTable     $symbolTable Instance of the SymbolTable
-	 * @param OutputInterface $doc         Instance of the OutputInterface
-	 */
-	public function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->typeInferer = new TypeInferrer($symbolTable);
-	}
+class PropertyFetchCheck extends TypeInferringBaseCheck {
 
 	/**
 	 * getCheckNodeTypes
@@ -58,7 +42,7 @@ class PropertyFetchCheck extends BaseCheck {
 	 */
 	public function run($fileName, Node $node, ClassLike $inside=null, Scope $scope=null) {
 		if ($node instanceof PropertyFetch) {
-			list($type) = $this->typeInferer->inferType($inside, $node->var, $scope);
+			list($type) = $this->typeInferrer->inferType($inside, $node->var, $scope);
 			if ($type && $type[0] != '!' && !$this->symbolTable->ignoreType($type)) {
 
 				if (!is_string($node->name)) {

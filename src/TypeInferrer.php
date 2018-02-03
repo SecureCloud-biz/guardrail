@@ -5,7 +5,7 @@
  * Apache 2.0 License
  */
 
-use BambooHR\Guardrail\Checks\DefinedConstantCheck;
+use BambooHR\Guardrail\Abstractions\ClassMethod;
 use PhpParser\Node;
 use BambooHR\Guardrail\SymbolTable\SymbolTable;
 use PhpParser\Node\Expr;
@@ -30,13 +30,17 @@ class TypeInferrer {
 	/** @var SymbolTable */
 	private $index;
 
+	/** @var TypeInferencePluginInterface[] */
+	private $plugins;
+
 	/**
 	 * TypeInferrer constructor.
 	 *
 	 * @param SymbolTable $table Instance of SymbolTable
 	 */
-	public function __construct(SymbolTable $table) {
+	public function __construct(SymbolTable $table, array $plugins = []) {
 		$this->index = $table;
+		$this->plugins = $plugins;
 	}
 
 	/**
@@ -53,6 +57,16 @@ class TypeInferrer {
 	 * @todo This looks like a good place for a strategy pattern
 	 */
 	public function inferType(ClassLike $inside = null, Expr $expr = null, Scope $scope) {
+		if ($expr == null) {
+			return [Scope::MIXED_TYPE, Scope::NULL_UNKNOWN];
+		}
+		foreach ($this->plugins as $plugin) {
+			$response = $plugin->inferNode( $expr, $inside, $scope, $this );
+			if ($response) {
+				return $response;
+			}
+		}
+
 		if ($expr instanceof AssignOp) {
 			return $this->inferType($inside, $expr->expr, $scope);
 		} elseif ($expr instanceof Scalar) {
@@ -85,11 +99,23 @@ class TypeInferrer {
 			return ["Closure", false];
 		} elseif ($expr instanceof FuncCall) {
 			if ($expr->name instanceof Name) {
-				$func = $this->index->getAbstractedFunction($expr->name);
+				$funcName = strval($expr->name);
+				$func = $this->index->getAbstractedFunction( $funcName );
 				if ($func) {
 					$type = Scope::constFromName($func->getReturnType());
 					if ($type) {
 						return [$type, Scope::NULL_IMPOSSIBLE];
+					}
+					if (Config::shouldUseDocBlockForReturnValues()) {
+						$type = $func->getDocBlockReturnType();
+						$type = Scope::constFromDocBlock(
+							$type,
+							Scope::UNDEFINED,
+							Scope::UNDEFINED
+						);
+						if ($type) {
+							return [$type, Scope::NULL_UNKNOWN];
+						}
 					}
 				}
 			}
@@ -133,6 +159,22 @@ class TypeInferrer {
 				$type1 == $type2 ? $type1 : Scope::MIXED_TYPE,
 				$null2
 			];
+		} elseif ($expr instanceof Expr\StaticCall) {
+			return $this->inferStaticMethodCall($inside, $expr, $scope);
+		}
+		return [Scope::MIXED_TYPE, Scope::NULL_UNKNOWN];
+	}
+
+	public function inferStaticMethodCall(ClassLike $inside = null, Node\Expr\StaticCall $expr, Scope $scope) {
+		if (gettype($expr->name) == "string") {
+			if ($expr->class instanceof Expr) {
+				list($class) = $this->inferType($inside, $expr->class, $scope);
+			} else {
+				$class = strval($expr->class);
+			}
+			if (!empty($class) && $class[0] != "!") {
+				return $this->inferMethodCallInternal($class, $expr->name);
+			}
 		}
 		return [Scope::MIXED_TYPE, Scope::NULL_UNKNOWN];
 	}
@@ -157,24 +199,19 @@ class TypeInferrer {
 			if (gettype($expr->name) == 'string') {
 				$propName = $expr->name;
 				if ($propName != "") {
-					$classDef = $this->index->getAbstractedClass($class);
-					if ($classDef) {
-						list($prop) = Util::findAbstractedProperty($class, $propName, $this->index);
-						if ($prop) {
-							$type = $prop->getType();
-							if (!empty($type)) {
-								if ($type[0] == '\\') {
-									$type = substr($type, 1);
-								}
-
-								$type2 = Scope::constFromDocBlock($type, $inside ? strval($inside->namespacedName) : "", $inside ? strval($inside->namespacedName) : "");
-								return [$type2, Scope::NULL_UNKNOWN];
+					list($prop,$hostingClass) = Util::findAbstractedProperty($class, $propName, $this->index);
+					if ($prop) {
+						$type = $prop->getType();
+						if (!empty($type)) {
+							if ($type[0] == '\\') {
+								$type = substr($type, 1);
 							}
-						} else {
-							//	echo "Unable to find prop $propName\n";
+
+							$type2 = Scope::constFromDocBlock($type, $hostingClass, $class);
+							return [$type2, Scope::NULL_UNKNOWN];
 						}
 					} else {
-						//echo "Unable to find class $class, to look up $propName\n";
+						//	echo "Unable to find prop $propName\n";
 					}
 				} else {
 					//echo "Unable to infer property type: $propName\n";
@@ -199,60 +236,44 @@ class TypeInferrer {
 			list($class) = $this->inferType($inside, $expr->var, $scope);
 			if (!empty($class) && $class[0] != "!") {
 
-				$type = $this->tryMakeCheck($expr, $class);
-				if ($type) {
-					return [ $type, Scope::NULL_IMPOSSIBLE];
-				}
-
-				//echo $class."->".$expr->name."\n";
-				$method = $this->index->getAbstractedMethod($class, strval($expr->name));
-
-				if ($method) {
-					$type = Scope::constFromName($method->getReturnType());
-					if ($type) {
-						return [$type, Scope::NULL_IMPOSSIBLE];
-					}
-
-					if (Config::shouldUseDocBlockForReturnValues()) {
-						$type = Scope::constFromDocBlock(
-							$method->getDocBlockReturnType(),
-							$inside ? strval($inside->namespacedName) : "",
-							$inside ? strval($inside->namespacedName) : ""
-						);
-						if ($type) {
-							return [$type, Scope::NULL_UNKNOWN];
-						}
-					}
-				}
+				return $this->inferMethodCallInternal($class, strval($expr->name));
 			}
 		}
 		return [Scope::MIXED_TYPE, Scope::NULL_UNKNOWN];
 	}
 
+
+
 	/**
-	 * @param Expr\MethodCall $expr  The methodcall node from the AST.
-	 * @param string          $class The class type that the call is made against.
-	 * @return string
+	 *
+	 * @param string $class
+	 * @param string $name
+
 	 */
-	protected function tryMakeCheck(Node\Expr\MethodCall $expr, $class) {
-// IoC
-		if (
-			strcasecmp($class, "Core\\App\\App") == 0 &&
-			$expr->name == "make"
-		) {
-			if (count($expr->args) == 1) {
-				$arg0 = $expr->args[0]->value;
-				if ($arg0 instanceof Expr\ClassConstFetch) {
-					if (
-						$arg0->class instanceof Name &&
-						is_string($arg0->name) &&
-						$arg0->name == "class"
-					) {
-						return strval($arg0->class);
-					}
+	protected function inferMethodCallInternal($class, $name) {
+		/** @var ClassMethod $method */
+		/** @var string $hostingClass */
+		list($method, $hostingClass) = Util::findAbstractedMethodAndHostingClass($class,$name, $this->index);
+
+		if ($method) {
+			$type = Scope::constFromName($method->getReturnType());
+
+			if ($type) {
+				return [$type, Scope::NULL_IMPOSSIBLE];
+			}
+
+			if (Config::shouldUseDocBlockForReturnValues()) {
+				$type = $method->getDocBlockReturnType();
+				$type = Scope::constFromDocBlock(
+					$type,
+					$hostingClass,
+					$class
+				);
+				if ($type) {
+					return [$type, Scope::NULL_UNKNOWN];
 				}
 			}
 		}
-		return "";
+		return [Scope::MIXED_TYPE, Scope::NULL_UNKNOWN];
 	}
 }

@@ -83,15 +83,6 @@ class XUnitOutput implements OutputInterface {
 	}
 
 	/**
-	 * incTests
-	 *
-	 * @return void
-	 */
-	public function incTests() {
-		//$this->suite->addTestCase();
-	}
-
-	/**
 	 * getTypeCounts
 	 *
 	 * @return array

@@ -14,27 +14,22 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\ClassLike;
 use BambooHR\Guardrail\Scope;
 
-class FunctionCallCheck extends BaseCheck {
+class FunctionCallCheck extends TypeInferringBaseCheck {
 
 	/**
 	 * @var CallableCheck
 	 */
 	private $callableCheck;
 
-	/**
-	 * @var TypeInferrer
-	 */
-	private $inferenceEngine;
 
 	/**
 	 * FunctionCallCheck constructor.
 	 * @param SymbolTable     $symbolTable -
 	 * @param OutputInterface $doc         -
 	 */
-	public function __construct(SymbolTable $symbolTable, OutputInterface $doc) {
-		parent::__construct($symbolTable, $doc);
-		$this->callableCheck = new CallableCheck($symbolTable, $doc);
-		$this->inferenceEngine = new TypeInferrer($symbolTable);
+	public function __construct(SymbolTable $symbolTable, OutputInterface $doc, TypeInferrer $inferrer) {
+		parent::__construct($symbolTable, $doc, $inferrer);
+		$this->callableCheck = new CallableCheck($symbolTable, $doc, $inferrer);
 	}
 
 
@@ -114,8 +109,7 @@ class FunctionCallCheck extends BaseCheck {
 					$this->emitError($fileName, $node, ErrorConstants::TYPE_UNKNOWN_FUNCTION, "Call to unknown function $name");
 				}
 			} else {
-				$inferer = new TypeInferrer($this->symbolTable);
-				list($type) = $inferer->inferType($inside, $node->name, $scope);
+				list($type) = $this->typeInferrer->inferType($inside, $node->name, $scope);
 				// If it isn't known to be "callable" or "closure" then it may just be a string.
 				if (strcasecmp($type, "callable") != 0 && strcasecmp($type, "closure") != 0) {
 					$this->emitError($fileName, $node, ErrorConstants::TYPE_VARIABLE_FUNCTION_NAME, "Variable ($type) function name detected");
@@ -190,7 +184,7 @@ class FunctionCallCheck extends BaseCheck {
 	protected function checkParam($fileName, $node, $name, Scope $scope, ClassLike $inside = null, $arg, $index, $params) {
 		if ($scope && $arg->value instanceof Node\Expr && $index < count($params)) {
 			$variableName = $params[$index]->getName();
-			list($type, $maybeNull) = $this->inferenceEngine->inferType($inside, $arg->value, $scope);
+			list($type, $maybeNull) = $this->typeInferrer->inferType($inside, $arg->value, $scope);
 			if ($arg->unpack) {
 				// Check if they called with ...$array.  If so, make sure $array is of type undefined or array
 				$isSplatable = (

@@ -33,6 +33,8 @@ use BambooHR\Guardrail\Checks\SwitchCheck;
 use BambooHR\Guardrail\Checks\UndefinedVariableCheck;
 use BambooHR\Guardrail\Checks\UnreachableCodeCheck;
 use BambooHR\Guardrail\Config;
+use BambooHR\Guardrail\PluginManager;
+use BambooHR\Guardrail\Util;
 use phpDocumentor\Reflection\DocBlock\Tags\Var_;
 use phpDocumentor\Reflection\DocBlockFactory;
 use phpDocumentor\Reflection\Types\Context;
@@ -110,14 +112,18 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 	 * StaticAnalyzer constructor.
 	 *
 	 * @param string          $basePath The base path
-	 * @param string          $index    The index
+	 * @param SymbolTable     $index    The index
 	 * @param OutputInterface $output   Instance if OutputInterface
 	 * @param Config          $config   The config
 	 */
 	function __construct($basePath, $index, OutputInterface $output, $config) {
+
+		$manager = new PluginManager($config);
+		$manager->initPlugins( $config->getPluginFileNames(), $index, $output);
+
 		$this->index = $index;
 		$this->scopeStack = [new Scope(true, true)];
-		$this->typeInferrer = new TypeInferrer($index);
+		$this->typeInferrer = new TypeInferrer($index, $manager->getTypeInferrerPlugins());
 		$this->output = $output;
 
 		/** @var \BambooHR\Guardrail\Checks\BaseCheck[] $checkers */
@@ -126,21 +132,21 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 			new UndefinedVariableCheck($this->index, $output),
 			new DefinedConstantCheck($this->index, $output),
 			new BackTickOperatorCheck($this->index, $output),
-			new PropertyFetchCheck($this->index, $output),
+			new PropertyFetchCheck($this->index, $output, $this->typeInferrer),
 			new InterfaceCheck($this->index, $output),
 			new ParamTypesCheck($this->index, $output),
 			new StaticCallCheck($this->index, $output),
-			new InstantiationCheck($this->index, $output),
+			new InstantiationCheck($this->index, $output, $this->typeInferrer),
 			new InstanceOfCheck($this->index, $output),
 			new CatchCheck($this->index, $output),
 			new ClassConstantCheck($this->index, $output),
-			new FunctionCallCheck($this->index, $output),
-			new MethodCall($this->index, $output),
+			new FunctionCallCheck($this->index, $output, $this->typeInferrer),
+			new MethodCall($this->index, $output, $this->typeInferrer),
 			new SwitchCheck($this->index, $output),
 			new BreakCheck($this->index, $output),
 			new ConstructorCheck($this->index, $output),
 			new GotoCheck($this->index, $output),
-			new ReturnCheck($this->index, $output),
+			new ReturnCheck($this->index, $output, $this->typeInferrer),
 			new StaticPropertyFetchCheck($this->index, $output),
 			new AccessingSuperGlobalsCheck($this->index, $output),
 			new UnreachableCodeCheck($this->index, $output),
@@ -153,7 +159,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		$this->enterHooks = $this->buildClosures();
 		$this->exitHooks = $this->buildLeaveClosures();
 
-		$checkers = array_merge($checkers, $config->getPlugins($this->index, $output));
+		$checkers = array_merge($checkers, $manager->getCheckingPlugins());
 
 		foreach ($checkers as $checker) {
 			foreach ($checker->getCheckNodeTypes() as $nodeType) {
@@ -319,7 +325,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 			if (gettype($node->name) == "string") {
 				list($type) = $this->typeInferrer->inferType(end($this->classStack) ?: null, $node->var, end($this->scopeStack));
 				if ($type && $type[0] != "!") {
-					$method = $this->index->getAbstractedMethod($type, $node->name);
+					$method = Util::findAbstractedMethod($type, $node->name, $this->index);
 					if ($method) {
 						$this->processMethodCall($node, $method);
 					}
@@ -329,7 +335,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 
 		$func[Node\Expr\StaticCall::class] = function (Node\Expr\StaticCall $node) {
 			if ($node->class instanceof Node\Name && gettype($node->name) == "string") {
-				$method = $this->index->getAbstractedMethod(strval($node->class), strval($node->name));
+				$method = Util::findAbstractedMethod(strval($node->class), strval($node->name), $this->index);
 				if ($method) {
 					$this->processStaticCall($node, $method);
 				}

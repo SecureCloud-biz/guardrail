@@ -147,20 +147,25 @@ class Util {
 	 * @return null|\BambooHR\Guardrail\Abstractions\ClassAbstraction|\BambooHR\Guardrail\Abstractions\ClassMethod|\BambooHR\Guardrail\Abstractions\ReflectedClassMethod
 	 */
 	static public function findAbstractedMethod($className, $name, SymbolTable $symbolTable) {
+		list($ret) = static::findAbstractedMethodAndHostingClass($className, $name, $symbolTable);
+		return $ret;
+	}
+
+	static public function findAbstractedMethodAndHostingClass($className, $name, SymbolTable $symbolTable) {
 		$className = strval($className);
 		while ($className) {
 			$class = $symbolTable->getAbstractedClass($className);
 			if (!$class) {
-				return null;
+				return [null,""];
 			}
 
 			$method = $class->getMethod($name);
 			if ($method) {
-				return $method;
+				return [$method,$className];
 			}
 			$className = $class->getParentClassName();
 		}
-		return null;
+		return [null,""];
 	}
 
 	/**

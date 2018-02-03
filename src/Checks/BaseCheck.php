@@ -5,6 +5,7 @@
  * Apache 2.0 License
  */
 
+use BambooHR\Guardrail\TypeInferrer;
 use PhpParser\Node;
 use BambooHR\Guardrail\Scope;
 use BambooHR\Guardrail\SymbolTable\SymbolTable;
@@ -68,15 +69,6 @@ abstract class BaseCheck extends ErrorConstants {
 	 */
 	public function emitErrorOnLine($file, $lineNumber, $class, $message="") {
 		return $this->doc->emitError(get_class($this), $file, $lineNumber, $class, $message);
-	}
-
-	/**
-	 * incTests
-	 *
-	 * @return void
-	 */
-	public function incTests() {
-		$this->doc->incTests();
 	}
 
 	/**

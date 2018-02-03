@@ -53,13 +53,6 @@ interface OutputInterface {
 	function outputExtraVerbose($string);
 
 	/**
-	 * incTests
-	 *
-	 * @return mixed
-	 */
-	function incTests();
-
-	/**
 	 * getErrorCount
 	 *
 	 * @return mixed
