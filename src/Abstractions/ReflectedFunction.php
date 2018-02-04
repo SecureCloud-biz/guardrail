@@ -63,6 +63,14 @@ class ReflectedFunction implements FunctionLikeInterface {
 		return "";
 	}
 
+	public function isNullableReturnType() {
+		return true;
+	}
+
+	public function isNullableDocBlockReturnType() {
+		return true;
+	}
+
 	/**
 	 * isAbstract
 	 *

@@ -44,6 +44,7 @@ class DocBlockNameResolver extends NameResolver {
 	 * DocBlockNameResolver constructor.
 	 */
 	function __construct() {
+		parent::__construct();
 		$this->factory = DocBlockFactory::createInstance();
 	}
 
@@ -211,11 +212,33 @@ class DocBlockNameResolver extends NameResolver {
 		if (count($return)) {
 			$returnType = strval($return[0]);
 			list($returnType) = explode(" ", $returnType, 2);
-			if ($returnType != "" && strpos($returnType, "|") === false) {
-				if ($returnType[0] == "\\") {
-					$returnType = substr($returnType, 1);
+
+			if ($returnType != "") {
+				$nullable = false;
+				$type = "";
+				$types = explode('|', $returnType);
+				if (count($types) == 1) {
+					$type = $types[0];
 				}
-				$node->setAttribute("namespacedReturn", strval($returnType));
+				if (count($types) == 2) {
+					if($types[0] == "null") {
+						$nullable = true;
+						$type = $types[1];
+					} else if($types[1]=="null") {
+						$nullable = true;
+						$type = $types[0];
+					}
+				}
+
+				if($type!="") {
+					if ($type[0] == "\\") {
+						$type = substr($type, 1);
+					}
+				}
+				$node->setAttribute("namespacedReturn", $type);
+				if($nullable) {
+					$node->setAttribute("hasNullableReturnType", true);
+				}
 			}
 		}
 	}

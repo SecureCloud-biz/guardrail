@@ -103,6 +103,31 @@ class Scope {
 	}
 
 	/**
+	 * @param string $str             The docblock type
+	 * @param string $nullable        Gets set if "null" is in the type list
+	 * @param string $insideClassName The string to use for $this or self::
+	 * @param string $staticClassName The string to use for static::
+	 * @return string
+	 */
+	static public function constAndNullFromDocBlock($str, &$nullable, $insideClassName="", $staticClassName="") {
+		if (strcasecmp($str, "object") == 0) {
+			return static::MIXED_TYPE;
+		} elseif (strcasecmp($str, "integer") == 0) {
+			return static::INT_TYPE;
+		} elseif (strcasecmp($str, "boolean") == 0) {
+			return static::SCALAR_TYPE;
+		} elseif (strcasecmp($str, "\$this") == 0) {
+			return $insideClassName;
+		} elseif (strcasecmp($str, "static") == 0) {
+			return $staticClassName;
+		} elseif (strcasecmp($str, "self") == 0) {
+			return $insideClassName;
+		} else {
+			return self::constFromName($str);
+		}
+	}
+
+	/**
 	 * @var ScopeVar[]
 	 */
 	private $vars = [];

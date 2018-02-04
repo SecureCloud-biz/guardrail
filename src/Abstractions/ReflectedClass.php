@@ -136,7 +136,7 @@ class ReflectedClass implements ClassInterface {
 				} else {
 					$access = "public";
 				}
-				return new Property($prop->getName(), $access, "", $modifiers & \ReflectionProperty::IS_STATIC );
+				return new Property($prop->getName(), $access, "", $modifiers & \ReflectionProperty::IS_STATIC, false );
 			}
 			return null;
 		} catch (\ReflectionException $exception) {

@@ -62,6 +62,10 @@ class ReflectedClassMethod implements MethodInterface {
 		return "";
 	}
 
+	public function isNullableReturnType() {
+		return true;
+	}
+
 	/**
 	 * getDocBlockReturnType
 	 *
@@ -69,6 +73,10 @@ class ReflectedClassMethod implements MethodInterface {
 	 */
 	public function getDocBlockReturnType() {
 		return "";
+	}
+
+	public function isNullableDocBlockReturnType() {
+		return true;
 	}
 
 	/**

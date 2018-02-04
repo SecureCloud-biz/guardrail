@@ -49,6 +49,7 @@ use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\ElseIf_;
 use PhpParser\Node\Stmt\Function_;
 use PhpParser\Node\Stmt\If_;
+use PhpParser\NodeTraverser;
 use PhpParser\NodeTraverserInterface;
 use BambooHR\Guardrail\Abstractions\FunctionLikeParameter;
 use BambooHR\Guardrail\Abstractions\ClassAbstraction as AbstractionClass;
@@ -172,6 +173,29 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		}
 	}
 
+	static function getLValueName(Node\Expr $str) {
+		if ($str instanceof Variable) {
+			if ($str->name instanceof Node\Expr) {
+				return static::getLValueName($str->name);
+			} else {
+				return $str->name;
+			}
+		} else if ($str instanceof ArrayDimFetch) {
+			$var = static::getLValueName($str->var);
+			$dim = "";
+			if ($str->dim instanceof Node\Scalar\String_) {
+				$dim = '"' . addslashes(strval($str->dim->value)) . '"';
+			} else if($str->dim instanceof Node\Scalar\LNumber) {
+				$dim = strval($str->dim->value);
+			}
+			return $var != "" && $dim != "" ? $var . '[' . $dim . ']' : '';
+		} else if ($str instanceof Node\Expr\PropertyFetch && is_string($str->name)) {
+			$var = static::getLValueName($str->var);
+			return $var != "" ? $var."->".$str->name : "";
+		}
+		return "";
+	}
+
 	/**
 	 * setFile
 	 *
@@ -263,6 +287,12 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 			$next = end($this->scopeStack);
 			$next->merge($last);
 		};
+
+		$func[Node\Expr\Ternary::class] = function(Node\Expr\Ternary $node) {
+			$last = array_pop($this->scopeStack);
+			$next = end($this->scopeStack);
+			$next->merge($last);
+		};
 		return $func;
 	}
 
@@ -307,7 +337,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		};
 
 		$func[Node\Stmt\Catch_::class] = function (Node\Stmt\Catch_ $node) {
-			$this->setScopeType(strval($node->var), strval($node->type), $node->getLine());
+			$this->setScopeType(strval($node->var), count($node->types)>1 ? Scope::MIXED_TYPE : strval($node->types[0]), $node->getLine());
 			$this->setScopeUsed(strval($node->var));
 		};
 
@@ -404,10 +434,10 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 				}
 			} else {
 				if ($valueVar instanceof List_) {
-					foreach ($valueVar->vars as $var) {
-						if ($var instanceof Variable) {
-							if (gettype($var->name) == "string") {
-								$this->setScopeType(strval($var->name), Scope::MIXED_TYPE, $var->getLine());
+					foreach ($valueVar->items as $var) {
+						if ($var && $var->value instanceof Variable) {
+							if (gettype($var->value->name) == "string") {
+								$this->setScopeType(strval($var->value->name), Scope::MIXED_TYPE, $var->value->getLine());
 							}
 						}
 					}
@@ -421,6 +451,10 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		};
 
 		$func[If_::class] = function (If_ $node) {
+			$this->pushIfScope($node);
+		};
+
+		$func[Node\Expr\Ternary::class] = function(Node\Expr\Ternary $node) {
 			$this->pushIfScope($node);
 		};
 
@@ -444,7 +478,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 	public function enterNode(Node $node) {
 		$class = get_class($node);
 		if ($node instanceof Trait_) {
-			return NodeTraverserInterface::DONT_TRAVERSE_CHILDREN;
+			return NodeTraverser::DONT_TRAVERSE_CHILDREN;
 		}
 		if (Config::shouldUseDocBlockForInlineVars() && !($node instanceof FunctionLike)) {
 			$vars = $node->getAttribute("namespacedInlineVar");
@@ -485,7 +519,7 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		$scope = end($this->scopeStack);
 		$newScope = $scope->getScopeClone($previous);
 		if (self::isCastableIf($node)) {
-			$this->addCastedScope($node, $newScope);
+			$this->addCastedScope($node->cond, $newScope);
 		}
 		array_push($this->scopeStack, $newScope);
 //		echo "  New scope created, depth=".count($this->scopeStack)."\n";
@@ -494,25 +528,32 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 	/**
 	 * addCastedScope
 	 *
-	 * When a node is of the form "if ($var instanceof ClassName)" (with no else clauses) then we can
-	 * relax the scoping rules inside the if statement to allow a different set of methods that might not
-	 * be normally visible.  This is primarily used for downcasting.
-	 *
-	 * "ClassName" inside the true clause.
+	 * When a node is of the form "if ($var instanceof ClassName  && $var2 instanceof ClassName2)"
+	 * then we can relax the scoping rules inside the if statement to allow a different set of
+	 * methods that might not be normally visible.  This is primarily used for downcasting.
 	 *
 	 * @param Node  $node     Instance of Node
 	 * @param Scope $newScope Instance of Scope
-	 * @guardrail-ignore Standard.Unknown.Property
 	 *
 	 * @return void
 	 */
-	public function addCastedScope(Node $node, Scope $newScope) {
-
-		/** @var Instanceof_ $cond */
-		$cond = $node->cond;
-
-		if ($cond->expr instanceof Variable && gettype($cond->expr->name) == "string" && $cond->class instanceof Node\Name) {
-			$newScope->setVarType($cond->expr->name, strval($cond->class), $cond->expr->getLine());
+	public function addCastedScope(Node $cond, Scope $newScope) {
+		if ($cond instanceof Instanceof_) {
+			// If they cast instanceof then we know the type and we know that it can't be null.
+			$lValue = static::getLValueName($cond->expr);
+			if ($lValue != "" && $cond->class instanceof Node\Name) {
+				$newScope->setVarType($lValue, strval($cond->class), $cond->expr->getLine());
+				$newScope->setVarNull($lValue, Scope::NULL_IMPOSSIBLE );
+			}
+		} else if ($cond instanceof Variable || $cond instanceof ArrayDimFetch || $cond instanceof Node\Expr\PropertyFetch) {
+			// If they cast a if($foo), if($foo->bar), if($foo['baz']), then null is impossible for that term.
+			$lValue = static::getLValueName($cond);
+			if ($lValue != "") {
+				$newScope->setVarNull($lValue, Scope::NULL_IMPOSSIBLE);
+			}
+		} else if ($cond instanceof Node\Expr\BinaryOp\LogicalAnd) {
+			$this->addCastedScope($cond->left, $newScope);
+			$this->addCastedScope($cond->right, $newScope);
 		}
 	}
 
@@ -591,6 +632,18 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		array_push($this->scopeStack, $scope);
 	}
 
+	static public function isCastableCondition(Node\Expr $node) {
+		if ($node instanceof Node\Expr\BinaryOp\LogicalAnd) {
+			return static::isCastableCondition( $node->left ) && static::isCastableCondition( $node->right );
+		} else if($node instanceof Variable) {
+			return true;
+		} else if($node instanceof ArrayDimFetch) {
+			return true;
+		} else if($node instanceof Node\Expr\PropertyFetch) {
+			return true;
+		}
+	}
+
 	/**
 	 * isCastableIf
 	 *
@@ -602,9 +655,11 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 	 */
 	static public function isCastableIf(Node $node) {
 		if ($node instanceof If_) {
-			return $node->cond instanceof Instanceof_;
+			return static::isCastableCondition($node->cond);
 		} else if ($node instanceof ElseIf_) {
-			return $node->cond instanceof Instanceof_;
+			return static::isCastableCondition($node->cond);
+		} else if ($node instanceof Node\Expr\Ternary) {
+			return static::isCastableCondition($node->cond);
 		} else {
 			return false;
 		}
@@ -624,8 +679,8 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 		$class = end($this->classStack) ?: null;
 		list($newType, $nullable) = $this->typeInferrer->inferType($class, $expr, $scope);
 		$this->setScopeType($varName, $newType, $line);
-		if ($nullable == Scope::NULL_POSSIBLE) {
-			$scope->setVarNull($varName);
+		if ($nullable == Scope::NULL_POSSIBLE || $nullable == Scope::NULL_IMPOSSIBLE) {
+			$scope->setVarNull($varName, $nullable);
 		}
 	}
 
@@ -715,9 +770,13 @@ class StaticAnalyzer extends NodeVisitorAbstract {
 			}
 		} else if ($op->var instanceof List_) {
 			// We're not going to examine a potentially complex right side of the assignment, so just set all vars to mixed.
-			foreach ($op->var->vars as $var) {
-				if ($var && $var instanceof Variable && gettype($var->name) == "string") {
-					$this->setScopeType(strval($var->name), Scope::MIXED_TYPE, $var->getLine());
+			foreach ($op->var->items as $var) {
+				/** @var Node\Expr\ArrayItem $var */
+				if ($var && $var->value &&
+					$var->value instanceof Variable &&
+					gettype($var->value->name) == "string"
+				) {
+					$this->setScopeType(strval($var->value->name), Scope::MIXED_TYPE, $var->getLine());
 				}
 			}
 		} else if ($op->var instanceof ArrayDimFetch) {

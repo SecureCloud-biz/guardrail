@@ -6,6 +6,7 @@
  */
 
 use BambooHR\Guardrail\Abstractions\ClassMethod;
+use BambooHR\Guardrail\NodeVisitors\StaticAnalyzer;
 use PhpParser\Node;
 use BambooHR\Guardrail\SymbolTable\SymbolTable;
 use PhpParser\Node\Expr;
@@ -66,8 +67,30 @@ class TypeInferrer {
 				return $response;
 			}
 		}
+		$lValue = StaticAnalyzer::getLValueName($expr);
+		if ($lValue!="" && $lValue!="this") {
+			$val = $scope->getVarType($lValue);
+			if ($val != Scope::UNDEFINED) {
+				if(strpos($lValue,"[")!==false || strpos($lValue,"->")!==false) {
+					echo "Found Value: $lValue = $val\n";
+				}
+				return [$val, $scope->getVarNullability($lValue)];
+			}
+		}
 
-		if ($expr instanceof AssignOp) {
+		if ($expr instanceof New_) {
+			if($expr->class instanceof Name) {
+				$class = strval($expr->class);
+				if ($class=="self") {
+
+					return [$inside?strval($inside->namespacedName) : "", Scope::NULL_IMPOSSIBLE];
+				} else if ($class=="static") {
+					// At the moment new static() is called, we don't know what "static" is.
+					return [Scope::MIXED_TYPE, Scope::NULL_IMPOSSIBLE];
+				}
+				return [strval($expr->class), Scope::NULL_IMPOSSIBLE];
+			}
+		} else if ($expr instanceof AssignOp) {
 			return $this->inferType($inside, $expr->expr, $scope);
 		} elseif ($expr instanceof Scalar) {
 			return [Scope::SCALAR_TYPE, Scope::NULL_IMPOSSIBLE];
@@ -104,7 +127,7 @@ class TypeInferrer {
 				if ($func) {
 					$type = Scope::constFromName($func->getReturnType());
 					if ($type) {
-						return [$type, Scope::NULL_IMPOSSIBLE];
+						return [$type, $func->isNullableReturnType() ? Scope::NULL_POSSIBLE : Scope::NULL_IMPOSSIBLE];
 					}
 					if (Config::shouldUseDocBlockForReturnValues()) {
 						$type = $func->getDocBlockReturnType();
@@ -259,7 +282,7 @@ class TypeInferrer {
 			$type = Scope::constFromName($method->getReturnType());
 
 			if ($type) {
-				return [$type, Scope::NULL_IMPOSSIBLE];
+				return [$type, $method->isNullableReturnType() ? Scope::NULL_POSSIBLE : Scope::NULL_IMPOSSIBLE];
 			}
 
 			if (Config::shouldUseDocBlockForReturnValues()) {

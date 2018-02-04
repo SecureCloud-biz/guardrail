@@ -15,10 +15,10 @@
     },
     "bin": [ "src/bin/guardrail.php" ],
     "require": {
-        "nikic/php-parser": "^2.0",
+        "nikic/php-parser": "^3.1",
         "webmozart/glob":"^4.1.0",
         "n98/junit-xml":"^1.0.0",
-        "seld/jsonlint": "^1.6",
+        "seld/jsonlint": "^1.7",
         "ext-sqlite3" : "*",
         "ext-pcntl": "*",
         "ext-pdo_sqlite": "*"

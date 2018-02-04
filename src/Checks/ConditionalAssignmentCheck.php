@@ -9,6 +9,7 @@ use BambooHR\Guardrail\NodeVisitors\ForEachNode;
 use BambooHR\Guardrail\Scope;
 use PhpParser\Node;
 use PhpParser\Node\Stmt\ClassLike;
+use PhpParser\NodeTraverser;
 
 /**
  * Class ConstructorCheck
@@ -42,7 +43,9 @@ class ConditionalAssignmentCheck extends BaseCheck {
 			ForEachNode::run([$node->cond], function($node) use (&$assignment) {
 				if ($node instanceof Node\Expr\Assign) {
 					$assignment = $node;
+					return NodeTraverser::DONT_TRAVERSE_CHILDREN;
 				}
+				return null;
 			});
 			if ($assignment) {
 				$this->emitError($fileName, $assignment, ErrorConstants::TYPE_CONDITIONAL_ASSIGNMENT, "Attempt to assign a variable inside an if() condition clause");

@@ -86,7 +86,10 @@ class MethodCall extends TypeInferringBaseCheck {
 				}
 			}
 			if ($scope) {
-				list($className) = $this->typeInferrer->inferType($inside, $node->var, $scope);
+				list($className, $nullable) = $this->typeInferrer->inferType($inside, $node->var, $scope);
+				if($nullable == Scope::NULL_POSSIBLE) {
+					$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "Potentially NULL variable used on the left side of -> operator");
+				}
 			}
 			if ($className != "" && $className[0] != "!") {
 				if (!$this->symbolTable->isDefinedClass($className)) {
@@ -212,9 +215,9 @@ class MethodCall extends TypeInferringBaseCheck {
 					// Nulls mismatch
 					if (!$params[$index]->isOptional()) {
 						if ($type == Scope::NULL_TYPE) {
-							$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "NULL passed to method " . $className . "->" . $methodName. "() parameter \$$variableName that does not accept nulls");
+							$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "NULL passed to method $name() parameter \$$variableName that does not accept nulls");
 						} else if ($maybeNull == Scope::NULL_POSSIBLE) {
-							$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "Potentially NULL value passed to method " . $className . "->" . $methodName . "() parameter \$$variableName that does not accept nulls");
+							//$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "Potentially NULL value passed to method $name() parameter \$$variableName that does not accept nulls");
 						}
 					}
 					*/

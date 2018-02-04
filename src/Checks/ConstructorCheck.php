@@ -14,6 +14,7 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\NodeTraverser;
 
 /**
  * Class ConstructorCheck
@@ -49,8 +50,10 @@ class ConstructorCheck extends BaseCheck {
 
 				) {
 					$found = true;
+					return NodeTraverser::STOP_TRAVERSAL;
 				}
 			}
+			return null;
 		});
 		return $found;
 	}

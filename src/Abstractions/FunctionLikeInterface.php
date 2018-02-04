@@ -41,6 +41,18 @@ interface FunctionLikeInterface {
 	public function getDocBlockReturnType();
 
 	/**
+	 * return bool
+	 */
+	public function isNullableDocBlockReturnType();
+
+	/**
+	 *
+	 * @return bool
+	 */
+	public function isNullableReturnType();
+
+
+	/**
 	 * isInternal
 	 *
 	 * @return bool

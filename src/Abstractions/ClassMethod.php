@@ -6,6 +6,7 @@
  */
 
 use BambooHR\Guardrail\Util;
+use PhpParser\Node\NullableType;
 use PhpParser\Node\Stmt\ClassMethod as ParserClassMethod;
 
 /**
@@ -35,7 +36,15 @@ class ClassMethod implements MethodInterface {
 	 * @return string
 	 */
 	public function getReturnType() {
-		return strval($this->method->returnType);
+		if($this->method->returnType instanceof NullableType) {
+			return strval($this->method->returnType->type);
+		} else {
+			return strval($this->method->returnType);
+		}
+	}
+
+	public function isNullableReturnType() {
+		return ($this->method->returnType instanceof NullableType);
 	}
 
 	/**
@@ -57,6 +66,13 @@ class ClassMethod implements MethodInterface {
 	 */
 	public function getDocBlockReturnType() {
 		return $this->method->getAttribute('namespacedReturn');
+	}
+
+	/**
+	 * @return bool
+	 */
+	public function isNullableDocBlockReturnType() {
+		return boolval($this->method->getAttribute('hasNullableReturnType'));
 	}
 
 	/**

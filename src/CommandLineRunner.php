@@ -76,6 +76,8 @@ where: -p #/#                 = Define the number of partitions and the current 
 			exit(1);
 		}
 
+		ini_set('xdebug.max_nesting_level', 3000);
+
 		try {
 			$config = new Config($argv);
 		} catch (InvalidConfigException $exception) {

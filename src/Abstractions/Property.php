@@ -33,18 +33,25 @@ class Property {
 	private $static;
 
 	/**
+	 * @var bool
+	 */
+	private $isNullable;
+
+	/**
 	 * Property constructor.
 	 *
-	 * @param string $name     The name of the property
-	 * @param string $type     The type of the property
-	 * @param string $access   The access
-	 * @param bool   $isStatic Is it static
+	 * @param string $name       The name of the property
+	 * @param string $type       The type of the property
+	 * @param string $access     The access
+	 * @param bool   $isStatic   Is it static
+	 * @param bool   $isNullable Is it nullalble
 	 */
-	public function __construct($name,$type, $access, $isStatic) {
+	public function __construct($name,$type, $access, $isStatic, $isNullable) {
 		$this->name = $name;
 		$this->access = $access;
 		$this->type = $type;
 		$this->static = $isStatic;
+		$this->isNullable = $isNullable;
 	}
 
 	/**
@@ -81,5 +88,9 @@ class Property {
 	 */
 	public function isStatic() {
 		return $this->static;
+	}
+
+	public function isNullable() {
+		return $this->isNullable;
 	}
 }

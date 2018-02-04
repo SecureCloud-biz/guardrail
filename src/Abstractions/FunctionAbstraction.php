@@ -5,6 +5,7 @@
  * Apache 2.0 License
  */
 
+use PhpParser\Node\NullableType;
 use PhpParser\Node\Stmt\Function_ as AstFunction;
 use BambooHR\Guardrail\NodeVisitors\VariadicCheckVisitor;
 
@@ -36,6 +37,14 @@ class FunctionAbstraction implements FunctionLikeInterface {
 	 */
 	public function getReturnType() {
 		return strval($this->function->returnType);
+	}
+
+	public function isNullableReturnType() {
+		return ($this->function->returnType instanceof NullableType);
+	}
+
+	public function isNullableDocBlockReturnType() {
+		return boolval($this->function->getAttribute("hasNullableDocBlockReturn"));
 	}
 
 	/**
