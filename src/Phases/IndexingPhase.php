@@ -78,6 +78,17 @@ class IndexingPhase {
 	function indexFile(Config $config, $pathName) {
 		$baseDir = $config->getBasePath();
 		$name = Util::removeInitialPath($baseDir, $pathName);
+
+		if (strpos($pathName,"phar:") !== 0) {
+			$lastModified = stat($pathName);
+			$time = $config->getSymbolTable()->getLastProcessTime($pathName, 'index');
+			//echo "Checking $pathName ".$lastModified['mtime']. ' vs '.$time."\n";
+			if ($time && $time == $lastModified['mtime']) {
+			//	echo "Skipping index of $name\n";
+				return 0;
+			}
+		}
+
 		// If the $fileName is in our phar then make it a relative path so that files that we index don't
 		// depend on the phar file existing in a particular directory.
 		if (strpos($name, "phar://") === 0) {
@@ -104,6 +115,8 @@ class IndexingPhase {
 		} catch (\Exception $exc) {
 			echo "ERROR " . $exc->getMessage() . "\n";
 		}
+		echo "W";
+		$config->getSymbolTable()->setLastProcessTime($pathName,'index', $lastModified['mtime']);
 		return strlen($fileData);
 	}
 

@@ -71,6 +71,39 @@ class SqliteSymbolTable extends SymbolTable implements PersistantSymbolTable {
 		$this->init();
 	}
 
+	public function getLastProcessTime($name, $type) {
+		if ($type=="index") {
+			$column = "last_indexed";
+		} else if($type=="scan") {
+			$column = "last_scanned";
+		} else {
+			trigger_error("Unknown type");
+		}
+		$sql = "SELECT $column FROM files WHERE file=?";
+		$statement = $this->con->prepare($sql);
+		$statement->execute([$name]);
+
+		$result = $statement->fetch(Pdo::FETCH_NUM);
+		if ($result) {
+			return $result[0];
+		} else {
+			return "";
+		}
+	}
+
+	public function setLastProcessTime($name,$type,$time) {
+		if ($type=="index") {
+			$column = "last_indexed";
+		} else if($type=="scan") {
+			$column = "last_scanned";
+		} else {
+			trigger_error("Unknown type");
+		}
+		$sql = "INSERT OR REPLACE INTO files(file, $column) VALUES (?,?)";
+		$statement = $this->con->prepare($sql);
+		$statement->execute([$name,$time]);
+	}
+
 	/**
 	 * init
 	 *
@@ -79,6 +112,9 @@ class SqliteSymbolTable extends SymbolTable implements PersistantSymbolTable {
 	public function init() {
 		$this->con->exec('
 			create table symbol_table( name text not null, type integer not null, file text not null, has_trait int not null, data blob not null );
+		');
+		$this->con->exec('
+			create table files(file text not null unique, last_indexed integer, last_scanned integer)
 		');
 
 	}

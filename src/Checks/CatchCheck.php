@@ -70,7 +70,9 @@ class CatchCheck extends BaseCheck {
 
 				if (!$this->symbolTable->isDefinedClass($name)) {
 					$this->emitError($fileName, $node, ErrorConstants::TYPE_UNKNOWN_CLASS, "Attempt to catch unknown type: $name");
-				}
+				} /*else if(!$this->symbolTable->isParentClassOrInterface("Exception", $name) && !$this->symbolTable->isParentClassOrInterface("Error", $name)) {
+					$this->emitError($fileName, $node, ErrorConstants::TYPE_SIGNATURE_TYPE, "Attempt to catch $name which is not a Throwable");
+				}*/
 			}
 		}
 	}

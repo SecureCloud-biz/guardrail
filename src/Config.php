@@ -158,7 +158,7 @@ class Config {
 				$this->forceIndex = true;
 			}
 			if ($this->forceIndex && file_exists($this->getSymbolTableFile())) {
-				unlink($this->getSymbolTableFile());
+				//unlink($this->getSymbolTableFile());
 			}
 
 			$this->symbolTable = new \BambooHR\Guardrail\SymbolTable\SqliteSymbolTable($this->getSymbolTableFile(), $this->getBasePath());
