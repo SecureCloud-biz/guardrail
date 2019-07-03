@@ -1,7 +1,7 @@
 <?php namespace BambooHR\Guardrail\Checks;
 
+use BambooHR\Guardrail\BranchEvaluator;
 use BambooHR\Guardrail\Scope;
-use BambooHR\Guardrail\Util;
 use PhpParser\Node;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Stmt\ClassLike;
@@ -43,31 +43,13 @@ class UnreachableCodeCheck extends BaseCheck {
 					$statements = [$statements];
 				}
 			}
-			$statement = $this->checkForUnreachableNode($statements);
-			if (null !== $statement) {
-				if ($statement->getLine() > 0) {
-					$this->emitError($fileName, $statement, ErrorConstants::TYPE_UNREACHABLE_CODE, "Unreachable code was found.");
-					return;
+			if (count($statements) >= 2) {
+				$evaluator = new BranchEvaluator();
+				$evaluator->statementsAlwaysExit($statements);
+				foreach ($evaluator->getErrors() as $unreachableStatement) {
+					$this->emitError($fileName, $unreachableStatement, ErrorConstants::TYPE_UNREACHABLE_CODE, "Unreachable code was found.");
 				}
 			}
 		}
-	}
-
-	/**
-	 * checkForUnreachableNode
-	 *
-	 * @param array $statements An array of statements from the node
-	 *
-	 * @return mixed|null
-	 */
-	public function checkForUnreachableNode(array $statements) {
-		$previous = array_shift($statements);
-		foreach ($statements as $statement) {
-			if (Util::allBranchesExit([$previous])) {
-				return $statement;
-			}
-			$previous = $statement;
-		}
-		return null;
 	}
 }
